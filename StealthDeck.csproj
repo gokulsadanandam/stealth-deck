@@ -13,6 +13,7 @@
     <RootNamespace>StealthDeck</RootNamespace>
     <AssemblyName>StealthDeck</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\StealthDeck.ico</ApplicationIcon>
     <Version>1.0.0</Version>
     <Product>StealthDeck</Product>
   </PropertyGroup>

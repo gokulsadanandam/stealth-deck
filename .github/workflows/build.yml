@@ -1,0 +1,106 @@
+name: Build and release
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $version = "${{ github.ref_name }}".TrimStart('v')
+          } else {
+            $base = ([xml](Get-Content StealthDeck.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+            $version = "$base"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version"
+
+      - name: Restore
+        run: dotnet restore StealthDeck.csproj
+
+      - name: Build (Release)
+        run: dotnet build StealthDeck.csproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Publish single-file exe
+        run: >
+          dotnet publish StealthDeck.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
+          -p:Version=${{ steps.version.outputs.version }} -o publish
+
+      - name: Install Inno Setup if missing
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup is not available" }
+
+      - name: Build Inno installer and portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory dist -Force | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" "/DSourceDir=..\publish" installer\StealthDeck.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          Compress-Archive -Path publish\StealthDeck.exe -DestinationPath "dist\StealthDeck-${{ steps.version.outputs.version }}-portable.zip" -Force
+
+      - name: Build MSI (WiX)
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix build installer\StealthDeck.wxs -d Version=${{ steps.version.outputs.version }} -d SourceDir=publish -arch x64 -o "dist\StealthDeck-${{ steps.version.outputs.version }}.msi"
+          if ($LASTEXITCODE -ne 0) { throw "WiX build failed" }
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist\SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: StealthDeck-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    # Only tagged builds (v1.2.3) publish a GitHub Release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

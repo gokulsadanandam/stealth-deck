@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX v5 source for the StealthDeck MSI.
+  Build: wix build installer\StealthDeck.wxs -d Version=1.0.0 -d SourceDir=publish -o dist\StealthDeck-1.0.0.msi
+
+  Per-user install (no admin rights) into %LocalAppData%\Programs\StealthDeck.
+  Optional silent switch:  msiexec /i StealthDeck-1.0.0.msi /qn STARTUP=1   (start at sign-in)
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="StealthDeck"
+           Manufacturer="StealthDeck"
+           Version="$(Version)"
+           UpgradeCode="5D2B7E91-3A64-4C8F-B0E2-91F6A7C4D358"
+           Scope="perUser"
+           Compressed="yes">
+
+    <SummaryInformation Description="StealthDeck overlay" />
+
+    <!-- Installing a newer version replaces the old one; installing an older one is blocked. -->
+    <!-- Icon shown in Apps &amp; features. Path is relative to the repo root, where the build runs. -->
+    <Icon Id="AppIcon.ico" SourceFile="assets\StealthDeck.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of StealthDeck is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Feature Id="Main" Title="StealthDeck" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="StartupEntry" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="StealthDeck" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="StealthDeck" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExe" Guid="*">
+        <File Id="StealthDeckExe" Source="$(SourceDir)\StealthDeck.exe" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="AppMenuFolder" Guid="*">
+      <Shortcut Id="StartMenuLink" Name="StealthDeck" Target="[INSTALLFOLDER]StealthDeck.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon.ico" />
+      <RemoveFolder Id="RemoveAppMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\StealthDeck" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Only installed when the package is run with STARTUP=1. -->
+    <Component Id="StartupEntry" Directory="INSTALLFOLDER" Guid="*" Condition="STARTUP = 1">
+      <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="StealthDeck"
+                     Type="string" Value="&quot;[INSTALLFOLDER]StealthDeck.exe&quot;" KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

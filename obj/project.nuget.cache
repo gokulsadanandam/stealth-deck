@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "fg2vjAvTQ2A=",
+  "success": true,
+  "projectFilePath": "D:\\Users\\Admin\\Desktop\\personal\\stealth-deck\\StealthDeck.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Admin\\.nuget\\packages\\microsoft.web.webview2\\1.0.2903.40\\microsoft.web.webview2.1.0.2903.40.nupkg.sha512"
+  ],
+  "logs": []
+}
